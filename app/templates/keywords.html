@@ -1,0 +1,523 @@
+{% extends "base.html" %}
+
+{% block title %}关键词管理 - RSS监控{% endblock %}
+{% block nav_keywords %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+    .keywords-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .keywords-table th:nth-child(1) { width: 35px; }   /* # */
+    .keywords-table th:nth-child(2) { width: auto; }    /* 关键词 */
+    .keywords-table th:nth-child(3) { width: 60px; }    /* 分组 */
+    .keywords-table th:nth-child(4) { width: 55px; }    /* 状态 */
+    .keywords-table th:nth-child(5) { width: 55px; }    /* 匹配次数 */
+    .keywords-table th:nth-child(6) { width: 60px; }    /* 过滤规则 */
+    .keywords-table th:nth-child(7) { width: 75px; }    /* 操作 */
+    
+    .keywords-table th,
+    .keywords-table td {
+        white-space: nowrap;
+    }
+    
+    .keywords-table td:nth-child(4),
+    .keywords-table td:nth-child(5),
+    .keywords-table td:nth-child(6),
+    .keywords-table td:nth-child(7) {
+        text-align: center;
+    }
+    
+    .action-group {
+        display: flex;
+        gap: 5px;
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .btn-sm {
+        padding: 4px 8px;
+        font-size: 12px;
+    }
+    
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        margin-top: 20px;
+        padding-top: 20px;
+        border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .pagination button {
+        background: transparent;
+        border: 1px solid rgba(255,255,255,0.2);
+        color: #e0e0e0;
+        padding: 6px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s;
+    }
+    
+    .pagination button:hover:not(:disabled) {
+        background: rgba(255,255,255,0.1);
+        border-color: #667eea;
+    }
+    
+    .pagination button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+    
+    .pagination .page-info {
+        color: #888;
+        font-size: 13px;
+        margin: 0 8px;
+    }
+    
+    .import-export-btn {
+        background: transparent;
+        border: 1px solid rgba(255,255,255,0.2);
+        color: #e0e0e0;
+        padding: 8px 16px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s;
+        margin-left: 10px;
+    }
+    
+    .import-export-btn:hover {
+        background: rgba(255,255,255,0.1);
+        border-color: #667eea;
+    }
+    
+    #importFileInput {
+        display: none;
+    }
+    
+    @media (max-width: 768px) {
+        .table-container {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin: 0 -12px;
+            padding: 0 12px;
+            width: calc(100% + 24px);
+        }
+        
+        .keywords-table {
+            min-width: 480px;
+        }
+        
+        .keywords-table th {
+            font-size: 11px;
+            padding: 8px 4px;
+        }
+        
+        .keywords-table td {
+            font-size: 12px;
+            padding: 8px 4px;
+        }
+        
+        .btn-sm {
+            padding: 6px 8px;
+            font-size: 13px;
+        }
+        
+        .card-title {
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .card-title .btn-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            width: 100%;
+        }
+        
+        .import-export-btn {
+            margin-left: 0;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+        <span>📋 关键词列表</span>
+        <div class="btn-group" style="display: flex; gap: 8px;">
+            <button class="btn btn-primary" onclick="showAddModal()">➕ 添加关键词</button>
+            <button class="import-export-btn" onclick="exportKeywords()">📤 导出</button>
+            <button class="import-export-btn" onclick="document.getElementById('importFileInput').click()">📥 导入</button>
+            <input type="file" id="importFileInput" accept=".json,application/json" onchange="importKeywords(this)">
+        </div>
+    </div>
+    
+    <div class="table-container">
+        <table class="keywords-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>关键词</th>
+                    <th>分组</th>
+                    <th>状态</th>
+                    <th>匹配次数</th>
+                    <th>过滤规则</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="keywordsTable">
+                <tr><td colspan="7" style="text-align: center;">加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+    
+    <div class="pagination" id="keywordsPagination"></div>
+</div>
+
+<!-- 添加关键词弹窗 -->
+<div id="addModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: #1a1a2e; border-radius: 20px; padding: 30px; width: 400px; max-width: 90%; border: 1px solid rgba(255,255,255,0.1);">
+        <h3 style="margin-bottom: 20px; color: #fff;">➕ 添加关键词</h3>
+        <form onsubmit="addKeyword(event)">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: #888;">关键词</label>
+                <input type="text" id="keywordInput" required style="width: 100%; padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: #fff; font-size: 14px;">
+            </div>
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; color: #888;">分组</label>
+                <input type="text" id="groupInput" value="默认" style="width: 100%; padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: #fff; font-size: 14px;">
+            </div>
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button type="button" class="btn" onclick="hideAddModal()" style="background: transparent; border: 1px solid rgba(255,255,255,0.2);">取消</button>
+                <button type="submit" class="btn btn-primary">添加</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- 过滤规则弹窗 -->
+<div id="filterModal" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 1000; align-items: center; justify-content: center;">
+    <div style="background: #1a1a2e; border-radius: 20px; padding: 30px; width: 500px; max-width: 90%; max-height: 80vh; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1);">
+        <h3 style="margin-bottom: 20px; color: #fff;">🔍 过滤规则 - <span id="filterKeywordName"></span></h3>
+        
+        <div style="margin-bottom: 20px;">
+            <div style="color: #888; margin-bottom: 10px;">📋 现有规则</div>
+            <div id="filtersList" style="max-height: 250px; overflow-y: auto;">
+                <div style="text-align: center; color: #888; padding: 20px;">加载中...</div>
+            </div>
+        </div>
+        
+        <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;">
+            <div style="color: #888; margin-bottom: 10px;">➕ 添加新规则</div>
+            <select id="filterType" style="width: 100%; padding: 10px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: #fff; margin-bottom: 10px;">
+                <option value="exclude">🚫 排除词（标题包含则不推送）</option>
+                <option value="regex">📐 正则表达式（标题必须匹配）</option>
+            </select>
+            <input type="text" id="filterValue" placeholder="输入规则内容" style="width: 100%; padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: #fff; margin-bottom: 10px;">
+            <button class="btn btn-primary" onclick="addFilter()" style="width: 100%;">添加规则</button>
+        </div>
+        
+        <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 20px;">
+            <button type="button" class="btn" onclick="hideFilterModal()" style="background: transparent; border: 1px solid rgba(255,255,255,0.2);">关闭</button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentKeywordId = null;
+let currentPage = 1;
+const pageSize = 10;
+
+async function loadKeywords(page = 1) {
+    currentPage = page;
+    try {
+        const response = await fetch(`/api/keywords?page=${page}&page_size=${pageSize}`);
+        const data = await response.json();
+        
+        if (data.keywords.length === 0) {
+            document.getElementById('keywordsTable').innerHTML = '<tr><td colspan="7" style="text-align: center;">暂无关键词，请先添加</td></tr>';
+            document.getElementById('keywordsPagination').innerHTML = '';
+            return;
+        }
+        
+        const startIndex = (page - 1) * pageSize;
+        const html = data.keywords.map((kw, index) => `
+            <tr>
+                <td>${startIndex + index + 1}</td>
+                <td><strong>${kw.keyword}</strong></td>
+                <td>${kw.group_name}</td>
+                <td>
+                    <label class="switch">
+                        <input type="checkbox" ${kw.enabled ? 'checked' : ''} onchange="toggleKeyword(${kw.id}, this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </td>
+                <td>${kw.match_count}</td>
+                <td>
+                    <button class="btn btn-sm" onclick="showFilterModal(${kw.id}, '${kw.keyword}')" style="background: transparent; border: 1px solid rgba(255,255,255,0.2);">
+                        🔍 规则
+                    </button>
+                </td>
+                <td>
+                    <div class="action-group">
+                        <button class="btn btn-sm" onclick="editKeyword(${kw.id}, '${kw.keyword}')" style="background: transparent; border: 1px solid rgba(255,255,255,0.2);">✏️</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteKeyword(${kw.id}, '${kw.keyword}')">🗑️</button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+        
+        document.getElementById('keywordsTable').innerHTML = html;
+        renderPagination(data.page, data.total_pages);
+    } catch (error) {
+        console.error('加载关键词失败:', error);
+    }
+}
+
+function renderPagination(currentPage, totalPages) {
+    const container = document.getElementById('keywordsPagination');
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    let html = '<button onclick="goToPage(1)" ' + (currentPage === 1 ? 'disabled' : '') + '>◀◀</button>';
+    html += '<button onclick="goToPage(' + (currentPage - 1) + ')" ' + (currentPage === 1 ? 'disabled' : '') + '>◀</button>';
+    
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    for (let i = startPage; i <= endPage; i++) {
+        html += '<button onclick="goToPage(' + i + ')" style="' + (i === currentPage ? 'background:#667eea;color:#fff;' : '') + '">' + i + '</button>';
+    }
+    
+    html += '<button onclick="goToPage(' + (currentPage + 1) + ')" ' + (currentPage === totalPages ? 'disabled' : '') + '>▶</button>';
+    html += '<button onclick="goToPage(' + totalPages + ')" ' + (currentPage === totalPages ? 'disabled' : '') + '>▶▶</button>';
+    html += '<span class="page-info">' + currentPage + '/' + totalPages + '</span>';
+    
+    container.innerHTML = html;
+    window.goToPage = function(page) {
+        loadKeywords(page);
+    };
+}
+
+async function toggleKeyword(id, enabled) {
+    try {
+        await fetch(`/api/keywords/${id}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled: enabled ? 1 : 0})
+        });
+    } catch (error) {
+        console.error('切换状态失败:', error);
+    }
+}
+
+async function deleteKeyword(id, keyword) {
+    if (!confirm(`确定要删除关键词 "${keyword}" 吗？`)) return;
+    
+    try {
+        await fetch(`/api/keywords/${id}`, {method: 'DELETE'});
+        loadKeywords(currentPage);
+    } catch (error) {
+        console.error('删除失败:', error);
+        alert('删除失败');
+    }
+}
+
+function editKeyword(id, keyword) {
+    const newKeyword = prompt('修改关键词:', keyword);
+    if (newKeyword && newKeyword !== keyword) {
+        alert('编辑功能开发中...');
+    }
+}
+
+function showAddModal() {
+    document.getElementById('addModal').style.display = 'flex';
+}
+
+function hideAddModal() {
+    document.getElementById('addModal').style.display = 'none';
+    document.getElementById('keywordInput').value = '';
+    document.getElementById('groupInput').value = '默认';
+}
+
+async function addKeyword(event) {
+    event.preventDefault();
+    const keyword = document.getElementById('keywordInput').value.trim();
+    const group = document.getElementById('groupInput').value.trim() || '默认';
+    
+    if (!keyword) return;
+    
+    try {
+        const response = await fetch('/api/keywords', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({keyword, group})
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            hideAddModal();
+            loadKeywords(1);
+        } else {
+            alert(data.error || '添加失败');
+        }
+    } catch (error) {
+        console.error('添加失败:', error);
+        alert('添加失败');
+    }
+}
+
+// ============= 导入/导出 =============
+async function exportKeywords() {
+    try {
+        const response = await fetch('/api/keywords/export');
+        const keywords = await response.json();
+        
+        const blob = new Blob([JSON.stringify(keywords, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `keywords_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('导出失败:', error);
+        alert('导出失败');
+    }
+}
+
+async function importKeywords(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    try {
+        const text = await file.text();
+        const keywords = JSON.parse(text);
+        
+        const response = await fetch('/api/keywords/import', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({keywords})
+        });
+        const data = await response.json();
+        
+        alert(`导入完成！成功 ${data.added} 条，跳过 ${data.skipped} 条（已存在）`);
+        loadKeywords(1);
+    } catch (error) {
+        console.error('导入失败:', error);
+        alert('导入失败：文件格式错误');
+    }
+    
+    input.value = '';
+}
+
+// ============= 过滤规则管理 =============
+async function showFilterModal(kwId, keyword) {
+    currentKeywordId = kwId;
+    document.getElementById('filterKeywordName').textContent = keyword;
+    document.getElementById('filterModal').style.display = 'flex';
+    await loadFilters();
+}
+
+function hideFilterModal() {
+    document.getElementById('filterModal').style.display = 'none';
+    currentKeywordId = null;
+}
+
+async function loadFilters() {
+    if (!currentKeywordId) return;
+    
+    try {
+        const response = await fetch(`/api/keywords/${currentKeywordId}/filters`);
+        const filters = await response.json();
+        
+        const html = filters.map(f => `
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 8px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="color: ${f.filter_type === 'exclude' ? '#ff9800' : '#667eea'}; font-size: 16px;">
+                        ${f.filter_type === 'exclude' ? '🚫' : '📐'}
+                    </span>
+                    <span style="color: #e0e0e0;">${f.filter_value}</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <label class="switch">
+                        <input type="checkbox" ${f.enabled ? 'checked' : ''} onchange="toggleFilter(${f.id}, this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                    <button class="btn btn-sm btn-danger" onclick="deleteFilter(${f.id})">🗑️</button>
+                </div>
+            </div>
+        `).join('');
+        
+        document.getElementById('filtersList').innerHTML = html || '<div style="text-align: center; color: #888; padding: 20px;">暂无规则，请添加</div>';
+    } catch (error) {
+        console.error('加载规则失败:', error);
+    }
+}
+
+async function addFilter() {
+    const type = document.getElementById('filterType').value;
+    const value = document.getElementById('filterValue').value.trim();
+    
+    if (!value) {
+        alert('请输入规则内容');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/keywords/${currentKeywordId}/filters`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({type, value})
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('filterValue').value = '';
+            await loadFilters();
+        } else {
+            alert(data.error || '添加失败');
+        }
+    } catch (error) {
+        console.error('添加失败:', error);
+        alert('添加失败');
+    }
+}
+
+async function toggleFilter(filterId, enabled) {
+    try {
+        await fetch(`/api/filters/${filterId}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled: enabled ? 1 : 0})
+        });
+    } catch (error) {
+        console.error('切换失败:', error);
+    }
+}
+
+async function deleteFilter(filterId) {
+    if (!confirm('确定删除这条规则吗？')) return;
+    
+    try {
+        await fetch(`/api/filters/${filterId}`, {method: 'DELETE'});
+        await loadFilters();
+    } catch (error) {
+        console.error('删除失败:', error);
+        alert('删除失败');
+    }
+}
+
+loadKeywords();
+</script>
+{% endblock %}

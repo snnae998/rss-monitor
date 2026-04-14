@@ -1,0 +1,36 @@
+services:
+  rss_monitor:
+    image: python:3.9-slim
+    container_name: rss_monitor
+    restart: unless-stopped
+    command: /bin/bash -c "cd /app && pip install --quiet requests feedparser psutil && python -u rss_main.py"
+    environment:
+      - TG_BOT_TOKEN=${TG_BOT_TOKEN}
+      - TG_CHAT_ID=${TG_CHAT_ID}
+      - TZ=Asia/Shanghai
+    volumes:
+      - ./data:/data
+      - ./app/rss_main.py:/app/rss_main.py
+    networks:
+      - monitor-network
+
+  web_admin:
+    image: python:3.9-slim
+    container_name: web_admin
+    restart: unless-stopped
+    command: /bin/bash -c "cd /app && pip install --quiet requests feedparser flask && python -u web_admin.py"
+    ports:
+      - "127.0.0.1:5000:5000"
+    environment:
+      - TZ=Asia/Shanghai
+      - WEB_PASSWORD=${WEB_PASSWORD}
+    volumes:
+      - ./data:/data
+      - ./app/web_admin.py:/app/web_admin.py
+      - ./app/templates:/app/templates
+    networks:
+      - monitor-network
+
+networks:
+  monitor-network:
+    driver: bridge

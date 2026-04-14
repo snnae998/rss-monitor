@@ -1,0 +1,546 @@
+{% extends "base.html" %}
+
+{% block title %}仪表盘 - RSS监控{% endblock %}
+{% block nav_index %}active{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+    
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        margin-bottom: 24px;
+    }
+    
+    .dashboard-grid .card {
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .dashboard-grid .card .table-container {
+        flex: 1;
+    }
+    
+    .progress-bar-container {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    
+    .progress-bar {
+        flex: 1;
+        height: 6px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 3px;
+        overflow: hidden;
+    }
+    
+    .progress-fill {
+        height: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 3px;
+        transition: width 0.3s ease;
+    }
+    
+    .progress-percent {
+        min-width: 45px;
+        text-align: right;
+        color: #888;
+        font-size: 12px;
+    }
+    
+    .pagination {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 8px;
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .pagination button {
+        background: transparent;
+        border: 1px solid rgba(255,255,255,0.2);
+        color: #e0e0e0;
+        padding: 6px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s;
+    }
+    
+    .pagination button:hover:not(:disabled) {
+        background: rgba(255,255,255,0.1);
+        border-color: #667eea;
+    }
+    
+    .pagination button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+    
+    .pagination .page-info {
+        color: #888;
+        font-size: 13px;
+        margin: 0 8px;
+    }
+    
+    .health-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+    
+    .health-dot.green { background: #4caf50; box-shadow: 0 0 8px rgba(76,175,80,0.5); }
+    .health-dot.yellow { background: #ff9800; box-shadow: 0 0 8px rgba(255,152,0,0.5); }
+    .health-dot.red { background: #f44336; box-shadow: 0 0 8px rgba(244,67,54,0.5); }
+    
+    .source-status-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    
+    .source-status-item:last-child {
+        border-bottom: none;
+    }
+    
+    .source-name {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .source-name-text {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .source-status {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        flex-shrink: 0;
+        margin-left: 12px;
+    }
+    
+    .recent-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .recent-table th {
+        text-align: left;
+        padding: 12px 8px;
+        color: #888;
+        font-weight: 500;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        white-space: nowrap;
+    }
+    
+    .recent-table td {
+        padding: 10px 8px;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+        font-size: 13px;
+    }
+    
+    .recent-table tr:last-child td {
+        border-bottom: none;
+    }
+    
+    .recent-table th:nth-child(1),
+    .recent-table td:nth-child(1) {
+        width: 1%;
+        white-space: nowrap;
+    }
+    
+    .recent-table th:nth-child(2),
+    .recent-table td:nth-child(2) {
+        width: 1%;
+        white-space: nowrap;
+        max-width: 150px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .recent-table td:nth-child(3) a {
+        color: #667eea;
+        text-decoration: none;
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .recent-table td:nth-child(3) a:hover {
+        text-decoration: underline;
+    }
+    
+    .recent-table th:nth-child(4),
+    .recent-table td:nth-child(4) {
+        width: 1%;
+        white-space: nowrap;
+        max-width: 100px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .export-btn {
+        background: transparent;
+        border: 1px solid rgba(255,255,255,0.2);
+        color: #e0e0e0;
+        padding: 6px 14px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 13px;
+        transition: all 0.2s;
+    }
+    
+    .export-btn:hover {
+        background: rgba(255,255,255,0.1);
+        border-color: #667eea;
+    }
+    
+    @media (max-width: 768px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        
+        .dashboard-grid {
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+        
+        .card {
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+        
+        .progress-bar-container {
+            max-width: 120px;
+        }
+        
+        .progress-bar {
+            min-width: 30px;
+        }
+        
+        .progress-percent {
+            min-width: 38px;
+            font-size: 11px;
+        }
+        
+        .dashboard-grid .card table td:nth-child(1) {
+            width: 35px;
+        }
+        
+        .dashboard-grid .card table td:nth-child(2) {
+            max-width: 55px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .dashboard-grid .card table td:nth-child(3) {
+            width: 40px;
+            font-size: 12px;
+        }
+        
+        .pagination button {
+            padding: 8px 12px;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="stats-grid" id="statsGrid">
+    <div class="stat-card">
+        <div class="stat-value" id="totalKeywords">-</div>
+        <div class="stat-label">监控关键词</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="totalSources">-</div>
+        <div class="stat-label">RSS源</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="totalNotifications">-</div>
+        <div class="stat-label">总推送次数</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="todayMatches">-</div>
+        <div class="stat-label">今日匹配</div>
+    </div>
+</div>
+
+<div class="dashboard-grid">
+    <div class="card">
+        <div class="card-title">🔥 热门关键词 TOP 5</div>
+        <div class="table-container" id="topKeywordsContainer">
+            <div style="text-align: center; padding: 20px;">加载中...</div>
+        </div>
+        <div class="pagination" id="keywordsPagination"></div>
+    </div>
+    
+    <div class="card">
+        <div class="card-title">📡 源健康状态</div>
+        <div id="sourcesStatusContainer">
+            <div style="text-align: center; padding: 20px;">加载中...</div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+        <span>📋 最近推送</span>
+        <button class="export-btn" onclick="exportData()">📤 导出数据</button>
+    </div>
+    <div class="table-container" id="recentContainer">
+        <div style="text-align: center; padding: 20px;">加载中...</div>
+    </div>
+    <div class="pagination" id="recentPagination"></div>
+</div>
+
+<script>
+let currentKeywordPage = 1;
+let currentRecentPage = 1;
+let totalNotifications = 0;
+const keywordPageSize = 5;
+const recentPageSize = 5;
+
+async function loadStats() {
+    try {
+        const response = await fetch('/api/stats');
+        const data = await response.json();
+        
+        document.getElementById('totalKeywords').textContent = data.total_keywords;
+        document.getElementById('totalSources').textContent = data.total_sources;
+        document.getElementById('totalNotifications').textContent = data.total_notifications;
+        document.getElementById('todayMatches').textContent = data.today_matches;
+        
+        totalNotifications = data.total_notifications;
+    } catch (error) {
+        console.error('加载统计失败:', error);
+    }
+}
+
+async function loadTopKeywords(page = 1) {
+    currentKeywordPage = page;
+    try {
+        const response = await fetch(`/api/top-keywords?page=${page}&page_size=${keywordPageSize}`);
+        const data = await response.json();
+        
+        if (data.keywords.length === 0) {
+            document.getElementById('topKeywordsContainer').innerHTML = '<div style="text-align: center; padding: 20px; color: #888;">暂无数据</div>';
+            document.getElementById('keywordsPagination').innerHTML = '';
+            return;
+        }
+        
+        const maxCount = data.keywords[0]?.match_count || 1;
+        const totalNotifications = data.total_notifications || 1;
+        
+        let html = '<table style="width:100%;">';
+        data.keywords.forEach((kw, index) => {
+            const rank = (page - 1) * keywordPageSize + index + 1;
+            const percent = totalNotifications > 0 ? (kw.match_count / totalNotifications * 100).toFixed(1) : 0;
+            const progressWidth = maxCount > 0 ? (kw.match_count / maxCount * 100) : 0;
+            
+            html += `
+                <tr>
+                    <td style="width:40px;"><span style="color: ${rank <= 3 ? '#ffd700' : '#888'};">#${rank}</span></td>
+                    <td style="width:80px;">${kw.keyword}</td>
+                    <td style="width:60px; text-align:right;">${kw.match_count}次</td>
+                    <td>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width:${progressWidth}%;"></div>
+                            </div>
+                            <span class="progress-percent">${percent}%</span>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        });
+        html += '</table>';
+        document.getElementById('topKeywordsContainer').innerHTML = html;
+        
+        renderPagination('keywordsPagination', data.page, data.total_pages, loadTopKeywords);
+    } catch (error) {
+        console.error('加载热门关键词失败:', error);
+    }
+}
+
+async function loadSourcesStatus() {
+    try {
+        const response = await fetch('/api/sources-status?page=1&page_size=100');
+        const data = await response.json();
+        
+        if (data.sources.length === 0) {
+            document.getElementById('sourcesStatusContainer').innerHTML = '<div style="text-align: center; padding: 20px; color: #888;">暂无数据</div>';
+            return;
+        }
+        
+        let html = '';
+        data.sources.forEach(src => {
+            const errors = src.consecutive_errors || 0;
+            let healthClass = 'green';
+            let healthText = '正常';
+            if (errors >= 5) {
+                healthClass = 'red';
+                healthText = '异常';
+            } else if (errors >= 3) {
+                healthClass = 'yellow';
+                healthText = '警告';
+            }
+            
+            const statusText = src.enabled ? healthText : '已禁用';
+            const dotClass = src.enabled ? healthClass : 'red';
+            
+            html += `
+                <div class="source-status-item">
+                    <div class="source-name">
+                        <span class="health-dot ${dotClass}"></span>
+                        <span class="source-name-text" title="${src.name}">${src.name}</span>
+                    </div>
+                    <div class="source-status">
+                        <span style="color: ${src.enabled ? '#4caf50' : '#888'};">${statusText}</span>
+                        ${errors > 0 ? '<span style="color: #ff9800; font-size: 11px;">· ' + errors + '次</span>' : ''}
+                    </div>
+                </div>
+            `;
+        });
+        document.getElementById('sourcesStatusContainer').innerHTML = html;
+        
+    } catch (error) {
+        console.error('加载源状态失败:', error);
+    }
+}
+
+async function loadRecentNotifications(page = 1) {
+    currentRecentPage = page;
+    try {
+        const response = await fetch(`/api/recent-notifications?page=${page}&page_size=${recentPageSize}`);
+        const data = await response.json();
+        
+        if (data.notifications.length === 0) {
+            document.getElementById('recentContainer').innerHTML = '<div style="text-align: center; padding: 20px; color: #888;">暂无数据</div>';
+            document.getElementById('recentPagination').innerHTML = '';
+            return;
+        }
+        
+        let html = '<table class="recent-table"><thead><tr><th>时间</th><th>来源</th><th>标题</th><th>关键词</th></tr></thead><tbody>';
+        data.notifications.forEach(item => {
+            const time = item.created_at ? item.created_at.substring(5, 16).replace('T', ' ') : '';
+            const title = item.title || '';
+            const sourceName = item.source_name || '';
+            const keywords = item.matched_keywords || '';
+            
+            html += `
+                <tr>
+                    <td>${time}</td>
+                    <td title="${sourceName}">${sourceName}</td>
+                    <td><a href="${item.link || '#'}" target="_blank" title="${title}">${title}</a></td>
+                    <td title="${keywords}">${keywords}</td>
+                </tr>
+            `;
+        });
+        html += '</tbody></table>';
+        document.getElementById('recentContainer').innerHTML = html;
+        
+        renderPagination('recentPagination', data.page, data.total_pages, loadRecentNotifications);
+    } catch (error) {
+        console.error('加载最近推送失败:', error);
+    }
+}
+
+function renderPagination(containerId, currentPage, totalPages, loadFunc) {
+    const container = document.getElementById(containerId);
+    if (totalPages <= 1) {
+        container.innerHTML = '';
+        return;
+    }
+    
+    let html = '<button onclick="goToPage(1)" ' + (currentPage === 1 ? 'disabled' : '') + '>◀◀</button>';
+    html += '<button onclick="goToPage(' + (currentPage - 1) + ')" ' + (currentPage === 1 ? 'disabled' : '') + '>◀</button>';
+    
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    for (let i = startPage; i <= endPage; i++) {
+        html += '<button onclick="goToPage(' + i + ')" style="' + (i === currentPage ? 'background:#667eea;color:#fff;' : '') + '">' + i + '</button>';
+    }
+    
+    html += '<button onclick="goToPage(' + (currentPage + 1) + ')" ' + (currentPage === totalPages ? 'disabled' : '') + '>▶</button>';
+    html += '<button onclick="goToPage(' + totalPages + ')" ' + (currentPage === totalPages ? 'disabled' : '') + '>▶▶</button>';
+    html += '<span class="page-info">' + currentPage + '/' + totalPages + '</span>';
+    
+    container.innerHTML = html;
+    
+    window.goToPage = function(page) {
+        if (containerId === 'keywordsPagination') {
+            loadTopKeywords(page);
+        } else if (containerId === 'recentPagination') {
+            loadRecentNotifications(page);
+        }
+    };
+}
+
+async function exportData() {
+    try {
+        const [keywordsRes, sourcesRes, notificationsRes] = await Promise.all([
+            fetch('/api/keywords/export'),
+            fetch('/api/sources-status?page=1&page_size=100'),
+            fetch('/api/recent-notifications?page=1&page_size=1000')
+        ]);
+        
+        const keywords = await keywordsRes.json();
+        const sources = await sourcesRes.json();
+        const notifications = await notificationsRes.json();
+        
+        const exportData = {
+            export_time: new Date().toISOString(),
+            keywords: keywords,
+            sources: sources.sources,
+            recent_notifications: notifications.notifications
+        };
+        
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], {type: 'application/json'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `rss_dashboard_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error('导出失败:', error);
+        alert('导出失败');
+    }
+}
+
+loadStats();
+loadTopKeywords();
+loadSourcesStatus();
+loadRecentNotifications();
+
+setInterval(() => {
+    loadStats();
+    loadSourcesStatus();
+}, 30000);
+</script>
+{% endblock %}
